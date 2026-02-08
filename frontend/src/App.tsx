@@ -9,7 +9,7 @@ type Difficulty = 'easy' | 'medium' | 'hard' | 'mixed';
 
 function App() {
   // Estados del juego
-  const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
+  const [_difficulty, setDifficulty] = useState<Difficulty | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
   const [gameQuestions, setGameQuestions] = useState<any[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -261,10 +261,7 @@ const handleAnswerSelect = (answerIndex: number) => {
   if (isGameFinished) {
     const canEnterRanking = isTopScore(totalScore);
     const questionsAnswered = currentQuestionIndex;
-    const correctAnswers = gameQuestions.slice(0, currentQuestionIndex).filter((q, idx) => {
-      // Esta es una aproximación, podrías guardar las respuestas para ser más preciso
-      return true; // Simplificado
-    }).length;
+    
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-500 flex items-center justify-center p-4">
