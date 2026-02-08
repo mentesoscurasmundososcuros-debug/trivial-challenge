@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { getQuestionsByDifficulty } from './data/questions';
 import { getRanking, addToRanking, isTopScore, type RankingEntry } from './utils/ranking';
 import DifficultySelector from './components/DifficultySelector';
+import FloatingPoints from './components/FloatingPoints';
+import GameStats from './components/GameStats';
 
 type Difficulty = 'easy' | 'medium' | 'hard' | 'mixed';
 
@@ -21,9 +23,20 @@ function App() {
   const [showNameInput, setShowNameInput] = useState(false);
   const [ranking, setRanking] = useState<RankingEntry[]>(getRanking());
   const [bestStreak, setBestStreak] = useState(0);
+  const [showSpeedBonus, setShowSpeedBonus] = useState(false);
+  const [speedBonusAmount, setSpeedBonusAmount] = useState(0);
+  const [earnedPoints, setEarnedPoints] = useState(0);
+  const [showFloatingPoints, setShowFloatingPoints] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
 
   const currentQuestion = gameQuestions[currentQuestionIndex];
   const isGameFinished = currentQuestionIndex >= gameQuestions.length || lives === 0;
+
+  const [answerHistory, setAnswerHistory] = useState<{
+  question: any;
+  correct: boolean;
+  timeUsed: number;
+}[]>([]);
 
   // Temporizador
   useEffect(() => {
@@ -76,6 +89,14 @@ function App() {
   
   setStreak(0);
   setBestStreak(0);
+  setIsShaking(true);
+  setTimeout(() => setIsShaking(false), 500);
+  // Guardar tiempo agotado en historial
+  setAnswerHistory([...answerHistory, {
+    question: currentQuestion,
+    correct: false,
+    timeUsed: currentQuestion.timeLimit
+}]);
   };
 
   // Función para iniciar el juego con dificultad
@@ -94,6 +115,7 @@ function App() {
     setShowResult(false);
     setShowNameInput(false);
     setPlayerName('');
+    setAnswerHistory([]);
   };
 
   // Función para volver al selector de dificultad
@@ -104,34 +126,73 @@ function App() {
   };
 
   // Función para seleccionar respuesta
-  const handleAnswerSelect = (answerIndex: number) => {
-    if (selectedAnswer !== null) return;
-    
-    setSelectedAnswer(answerIndex);
-    setShowResult(true);
-    
-    const isCorrect = answerIndex === currentQuestion.correctAnswer;
-    
-    if (isCorrect) {
-  // Calcular puntos
-  const basePoints = getBasePoints(currentQuestion.difficulty);
-  const newStreak = streak + 1;
-  const multiplier = getStreakMultiplier(newStreak);
-  const points = Math.round(basePoints * multiplier);
+const handleAnswerSelect = (answerIndex: number) => {
+  if (selectedAnswer !== null) return;
   
-  setTotalScore(totalScore + points);
-  setStreak(newStreak);
+  setSelectedAnswer(answerIndex);
+  setShowResult(true);
+  const timeUsed = currentQuestion.timeLimit - timeLeft;
   
-  // Actualizar mejor racha si es necesario
-  if (newStreak > bestStreak) {
-    setBestStreak(newStreak);
+  const isCorrect = answerIndex === currentQuestion.correctAnswer;
+  
+  if (isCorrect) {
+    // Calcular puntos base
+    const basePoints = getBasePoints(currentQuestion.difficulty);
+    const newStreak = streak + 1;
+    const multiplier = getStreakMultiplier(newStreak);
+    let points = Math.round(basePoints * multiplier);
+    
+    // Calcular bonus de velocidad
+    const timeUsed = currentQuestion.timeLimit - timeLeft;
+    let speedBonus = 0;
+    
+    if (timeUsed <= 3) {
+      speedBonus = 50;
+    } else if (timeUsed <= 5) {
+      speedBonus = 20;
+    }
+    
+    // Mostrar bonus si existe
+    if (speedBonus > 0) {
+      setShowSpeedBonus(true);
+      setSpeedBonusAmount(speedBonus);
+      setTimeout(() => setShowSpeedBonus(false), 2000);
+    }
+    
+    points += speedBonus;
+    
+    // MOSTRAR PUNTOS FLOTANTES - ESTO ES CLAVE
+    setEarnedPoints(points);
+    setShowFloatingPoints(true);
+    setTimeout(() => setShowFloatingPoints(false), 1500);
+    
+    console.log('Mostrando puntos flotantes:', points); // DEBUG
+    
+    setTotalScore(totalScore + points);
+    setStreak(newStreak);
+    
+    // Actualizar mejor racha si es necesario
+    if (newStreak > bestStreak) {
+      setBestStreak(newStreak);
+    }
+  } else {
+    // Respuesta incorrecta
+    setLives(lives - 1);
+    setStreak(0);
+    
+    // Efecto shake
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 500);
+    
+    console.log('Respuesta incorrecta - shake activado'); // DEBUG
   }
-} else {
-  // Respuesta incorrecta
-  setLives(lives - 1);
-  setStreak(0);
-}
-  };
+  // Guardar en historial
+    setAnswerHistory([...answerHistory, {
+      question: currentQuestion,
+      correct: isCorrect,
+      timeUsed: timeUsed
+}]);
+};
 
   // Función para siguiente pregunta
   const nextQuestion = () => {
@@ -207,7 +268,8 @@ function App() {
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-500 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full">
+        <div className={`bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full relative ${isShaking ? 'animate-shake' : ''}`}>
+          <FloatingPoints points={earnedPoints} show={showFloatingPoints} />
           <h2 className="text-4xl font-bold text-gray-800 mb-4 text-center">
             {lives === 0 ? "💔 Game Over" : "🎉 ¡Completado!"}
           </h2>
@@ -217,6 +279,7 @@ function App() {
           <p className="text-2xl text-gray-500 mb-6 text-center">
             puntos totales
           </p>
+          
           
           <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-purple-50 p-4 rounded-lg text-center">
@@ -228,7 +291,8 @@ function App() {
               <p className="text-2xl font-bold text-purple-600">{bestStreak} 🔥</p>
             </div>
           </div>
-
+        
+          
           {/* Input de nombre si entra en ranking */}
           {canEnterRanking && !showNameInput && (
             <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
@@ -265,7 +329,8 @@ function App() {
               </button>
             </div>
           )}
-
+          {/* Estadísticas */}
+          <GameStats answerHistory={answerHistory} />
           {/* Mostrar ranking */}
           {ranking.length > 0 && (
             <div className="mb-6 bg-purple-50 rounded-lg p-6">
@@ -315,8 +380,11 @@ function App() {
   const potentialPoints = Math.round(basePoints * streakMultiplier);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-500 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full">
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-500 flex items-center justify-center p-4 relative">
+    {/* Puntos flotantes FUERA del contenedor blanco */}
+    <FloatingPoints points={earnedPoints} show={showFloatingPoints} />
+    
+    <div className={`bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full ${isShaking ? 'animate-shake' : ''}`}>
         {/* Header con stats */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-4">
@@ -364,9 +432,27 @@ function App() {
 
         {/* Racha y puntos potenciales */}
         {streak >= 3 && (
-          <div className="mb-4 text-center bg-orange-100 p-3 rounded-lg">
-            <p className="text-orange-800 font-bold">
-              🔥 Racha: {streak} | Multiplicador: x{streakMultiplier} | Puntos: {potentialPoints}
+        <div className={`mb-4 text-center p-3 rounded-lg ${
+          streak >= 10 ? 'bg-red-100 border-2 border-red-400 animate-pulse-glow' :
+          streak >= 5 ? 'bg-orange-100 border-2 border-orange-400' :
+          'bg-yellow-100 border-2 border-yellow-400'
+        }`}>
+          <p className={`font-bold text-lg ${
+            streak >= 10 ? 'text-red-800' :
+            streak >= 5 ? 'text-orange-800' :
+            'text-yellow-800'
+          }`}>
+            {streak >= 10 ? '🔥🔥🔥' : streak >= 5 ? '🔥🔥' : '🔥'} 
+            {' '}Racha: {streak} | Multiplicador: x{streakMultiplier} | Puntos: {potentialPoints}
+          </p>
+        </div>
+         )}
+
+        {/* Speed Bonus */}
+        {showSpeedBonus && (
+          <div className="mb-4 text-center bg-yellow-100 border-2 border-yellow-400 p-3 rounded-lg animate-pulse">
+            <p className="text-yellow-800 font-bold text-lg">
+              ⚡ SPEED BONUS! +{speedBonusAmount} puntos
             </p>
           </div>
         )}
